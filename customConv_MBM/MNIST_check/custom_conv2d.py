@@ -26,11 +26,12 @@ class MBM_conv2d(torch.autograd.Function):
 
 	def forward(ctx, in_feature, kernel, out_channel, bias=None):
 
+		#print("in_feature size {}".format(in_feature))
 		#Features to be later used in backward()
 		ctx.save_for_backward(in_feature, kernel, bias)
 
-		print(in_feature.size())
-		print(kernel.size())
+		#print(in_feature.size())
+		#print(kernel.size())
 
 		batch_size = in_feature.size(0)
 		in_channels = in_feature.size(1)
@@ -91,18 +92,30 @@ class MBM_conv2d(torch.autograd.Function):
 		#Features from forward whose gradients are required
 		# input --> in_feature, weight --> kernel, bias
 		input, weight, bias = ctx.saved_tensors
+		#print("This is input {}".format(input.size()))
+		#print("This is weight {}".format(weight.size()))
+		#print("This is bias {}".format(bias.size()))
+
 
 		grad_input = grad_weight = grad_bias = None
 
-		print("I'm here")
+		#print("I'm here")
+		#print(ctx.needs_input_grad[0])
 		if ctx.needs_input_grad[0]:
-			grad_input = grad_output.mm(weight)
+			grad_input = torch.nn.grad.conv2d_input(input.shape, weight, grad_output, padding=1)
+			#print(grad_input.size())
+			#grad_input = grad_output.mm(weight)
 		if ctx.needs_input_grad[1]:
-			grad_output = torch.transpose(grad_output,3,2)
-			grad_weight = torch.matmul(input, grad_output)
-			#grad_weight = grad_output.t().mm(input)
+			#print("weight da {}".format(weight))
+			grad_weight = torch.nn.grad.conv2d_weight(input, weight.shape, grad_output, padding=1)
+			#grad_output = torch.transpose(grad_output,3,2)
+			#grad_weight = torch.matmul(input, grad_output)
+			#grad_weight = grad_output.transpose(1,0).mm(input)
 		if bias is not None and ctx.needs_input_grad[2]:
-			grad_bias = grad_output.sum(0)
+			grad_bias = grad_output.sum(0).squeeze(0)
+
+		#print(grad_output.size())
+		#print(grad_weight.size())
 
 		return grad_input, grad_weight, None, None
         
