@@ -6,6 +6,11 @@ import torch.nn.functional as F
 from torch.nn.functional import unfold
 from MBM import MBM_func, convolve
 
+
+from torch.utils.cpp_extension import load
+cudnn_convolution = load(name="cudnn_convolution", sources=["cudnn_convolution.cpp"], verbose=True)
+
+
 class MBM_conv2d(torch.autograd.Function):
 
 	# @staticmethod
@@ -92,6 +97,19 @@ class MBM_conv2d(torch.autograd.Function):
 		#Features from forward whose gradients are required
 		# input --> in_feature, weight --> kernel, bias
 		input, weight, bias = ctx.saved_tensors
+
+		#Required params
+		input_size = list(input.shape)
+		weight_size = list(weight.shape)
+		stride = [1,1]
+		padding = [1,1]
+		dilation = [1,1]
+		groups = 1
+		benchmark=False
+		deterministic = False
+		allow_tf32 = False
+
+
 		#print("This is input {}".format(input.size()))
 		#print("This is weight {}".format(weight.size()))
 		#print("This is bias {}".format(bias.size()))
@@ -102,12 +120,16 @@ class MBM_conv2d(torch.autograd.Function):
 		#print("I'm here")
 		#print(ctx.needs_input_grad[0])
 		if ctx.needs_input_grad[0]:
-			grad_input = torch.nn.grad.conv2d_input(input.shape, weight, grad_output, padding=1)
+			#grad_input = torch.nn.grad.conv2d_input(input.shape, weight, grad_output, padding=1)
+			grad_input = cudnn_convolution.convolution_backward_input(input_size, grad_output, weight, padding, stride, dilation, groups, benchmark, deterministic, allow_tf32)
+
 			#print(grad_input.size())
 			#grad_input = grad_output.mm(weight)
 		if ctx.needs_input_grad[1]:
 			#print("weight da {}".format(weight))
-			grad_weight = torch.nn.grad.conv2d_weight(input, weight.shape, grad_output, padding=1)
+			#grad_weight = torch.nn.grad.conv2d_weight(input, weight.shape, grad_output, padding=1)
+			grad_weight = cudnn_convolution.convolution_backward_weight(weight_size, grad_output,input, padding, stride, dilation, groups, benchmark, deterministic, allow_tf32)
+
 			#grad_output = torch.transpose(grad_output,3,2)
 			#grad_weight = torch.matmul(input, grad_output)
 			#grad_weight = grad_output.transpose(1,0).mm(input)
