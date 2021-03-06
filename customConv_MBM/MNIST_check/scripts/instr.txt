@@ -1,0 +1,11 @@
+Dimensions:
+in_features == [in_channel, H, W]
+kernel == [out_channel, in_channel, kH, kW]
+
+Info:
+L -> Number of patches created to convolve over kernel
+o -> no of out channels
+n_mul = no of multiplication
+n_conv = no of convolutions
+
+(out_h, out_w) -> Output dimensions
