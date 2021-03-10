@@ -9,10 +9,10 @@ class Net(nn.Module):
 	def __init__(self):
 		super(Net, self).__init__()
 
-		self.MBMconv_1 = nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1, bias=None)
+		self.MBMconv_1 = MBMconv2d(1, 32, kernel_size=3, stride=1, padding=1, bias=None)
 		self.batchnorm_1 = nn.BatchNorm2d(32)
 		self.relu_1 = nn.ReLU(inplace=True)
-		self.MBMconv_2 = MBMconv2d(32, 64, kernel_size=3, stride=1, padding=1, bias=None)
+		self.MBMconv_2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1, bias=None)
 		self.batchnorm_2 = nn.BatchNorm2d(64)
 		self.relu_2 = nn.ReLU(inplace=True)
 		self.maxpool_1 = nn.MaxPool2d(kernel_size=2, stride=2)
