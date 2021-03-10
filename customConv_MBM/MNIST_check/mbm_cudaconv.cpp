@@ -3,8 +3,12 @@
 #include <vector>
 #include <THC/THC.h>
 #include <iostream>
+#include <ATen/NativeFunctions.h>
+#include <ATen/Config.h>
+#include <cuda_runtime_api.h>
 
-std::vector<torch::Tensor> forward(torch::Tensor input,
+
+std::vector<torch::Tensor> conv_forward(torch::Tensor input,
 									  torch::Tensor weights,
 									  int64_t kW, int64_t kH,
 									  int64_t dW, int64_t dH,
@@ -16,8 +20,8 @@ std::vector<torch::Tensor> forward(torch::Tensor input,
 	int64_t InputWidth = input.size(3);
 
 	int64_t nOutputPlane = weights.size(0);
-    int64_t outputHeight = (inputHeight + 2*padH - kH) / dH + 1;
-    int64_t outputWidth = (inputWidth + 2*padW - kW) / dW + 1;
+    int64_t outputHeight = (InputHeight + 2*padH - kH) / dH + 1;
+    int64_t outputWidth = (InputWidth + 2*padW - kW) / dW + 1;
 
     torch::Tensor output = torch::zeros(torch::IntArrayRef({batch_size, nOutputPlane, outputHeight, outputWidth})).cuda();
     torch::Tensor columns = torch::zeros(torch::IntArrayRef({nInputPlane*kW*kH, outputHeight*outputWidth})).cuda();
@@ -33,11 +37,11 @@ std::vector<torch::Tensor> forward(torch::Tensor input,
     											 torch::IntArrayRef({padW, padH}),
     											 torch::IntArrayRef({dW,dH})).cuda();
 
-    	output[elt].add_(weights.mm(columns).reshape(torch::IntArrayRef({nOutputPlane, outputHeight, outputWidth})))
+    	output[elt].add_(weights.mm(columns).reshape(torch::IntArrayRef({nOutputPlane, outputHeight, outputWidth})));
     }
     return {output};
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m){
-	m.def("forward", &forward,"conv forward (CUDA)")
+	m.def("c_forward", &conv_forward,"conv forward (CUDA)");
 }
