@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-import torchvision as tv
+#import torchvision as tv
 from torch import nn
 import torch.nn.functional as F
 from torch.nn.functional import unfold
@@ -9,20 +9,9 @@ from MBM import MBM_func, convolve
 
 from torch.utils.cpp_extension import load
 cudnn_convolution = load(name="cudnn_convolution", sources=["cudnn_convolution.cpp"], verbose=True)
-
+mbm_cudaconv = load(name="mbm_cudaconv", sources=["mbm_cudaconv.cpp"], verbose=True)
 
 class MBM_conv2d(torch.autograd.Function):
-
-	# @staticmethod
-	# #inp and kernel must be a tensor with only one dimension and of same length
-	
-	# def convolve(inp, kernel):
-		
-	# 	result = 0.0
-	# 	for i in range(len(inp)):
-	# 		result += MBM_func(inp[i], kernel[i]) #Custom multiplication algorithm
-
-	# 	return result
 
 	@staticmethod
 	#define the forward utility function - does the MBM convolution operation
@@ -31,12 +20,8 @@ class MBM_conv2d(torch.autograd.Function):
 
 	def forward(ctx, in_feature, kernel, out_channel, bias=None):
 
-		#print("in_feature size {}".format(in_feature))
 		#Features to be later used in backward()
 		ctx.save_for_backward(in_feature, kernel, bias)
-
-		#print(in_feature.size())
-		#print(kernel.size())
 
 		batch_size = in_feature.size(0)
 		in_channels = in_feature.size(1)
@@ -81,65 +66,58 @@ class MBM_conv2d(torch.autograd.Function):
 					#print("col pos - {}".format(L%orig_w))
 					result[b][o][L//orig_h][L%orig_w] = x
 
+
 		#In case bias is also supposed to be added
 		if bias is not None:
 			result += bias.unsqueeze(0).expand_as(result)
 
+
 		return result
 
-	@staticmethod
+	# @staticmethod
 	#Defining the gradient formula... done automatically
-	# #arguments to backward() = #outputs from forward()
-	# #outputs from backward() = #arguments to forward()
+	#arguments to backward() = #outputs from forward()
+	#outputs from backward() = #arguments to forward()
 	
-	def backward(ctx, grad_output):
+	# def backward(ctx, grad_output):
 
-		#Features from forward whose gradients are required
-		# input --> in_feature, weight --> kernel, bias
-		input, weight, bias = ctx.saved_tensors
+	# 	#Features from forward whose gradients are required
+	# 	# input --> in_feature, weight --> kernel, bias
+	# 	print("Is backward even a thing now?")
+	# 	input, weight, bias = ctx.saved_tensors
 
-		#Required params
-		input_size = list(input.shape)
-		weight_size = list(weight.shape)
-		stride = [1,1]
-		padding = [1,1]
-		dilation = [1,1]
-		groups = 1
-		benchmark=False
-		deterministic = False
-		allow_tf32 = False
-
-
-		#print("This is input {}".format(input.size()))
-		#print("This is weight {}".format(weight.size()))
-		#print("This is bias {}".format(bias.size()))
+	# 	#Required params
+	# 	input_size = list(input.shape)
+	# 	weight_size = list(weight.shape)
+	# 	stride = [1,1]
+	# 	padding = [1,1]
+	# 	dilation = [1,1]
+	# 	groups = 1
+	# 	benchmark=False
+	# 	deterministic = False
+	# 	allow_tf32 = False
 
 
-		grad_input = grad_weight = grad_bias = None
+	# 	grad_input = grad_weight = grad_bias = None
 
-		#print("I'm here")
-		#print(ctx.needs_input_grad[0])
-		if ctx.needs_input_grad[0]:
-			#grad_input = torch.nn.grad.conv2d_input(input.shape, weight, grad_output, padding=1)
-			grad_input = cudnn_convolution.convolution_backward_input(input_size, grad_output, weight, padding, stride, dilation, groups, benchmark, deterministic, allow_tf32)
+	# 	if ctx.needs_input_grad[0]:
+	# 		#grad_input = torch.nn.grad.conv2d_input(input.shape, weight, grad_output, padding=1)
+	# 		grad_input = cudnn_convolution.convolution_backward_input(input_size, grad_output, weight, padding, stride, dilation, groups, benchmark, deterministic, allow_tf32)
+	# 		grad_input = grad_input.to(torch.device("cuda"))
 
-			#print(grad_input.size())
-			#grad_input = grad_output.mm(weight)
-		if ctx.needs_input_grad[1]:
-			#print("weight da {}".format(weight))
-			#grad_weight = torch.nn.grad.conv2d_weight(input, weight.shape, grad_output, padding=1)
-			grad_weight = cudnn_convolution.convolution_backward_weight(weight_size, grad_output,input, padding, stride, dilation, groups, benchmark, deterministic, allow_tf32)
+	# 	if ctx.needs_input_grad[1]:
+	# 		#grad_weight = torch.nn.grad.conv2d_weight(input, weight.shape, grad_output, padding=1)
+	# 		grad_weight = cudnn_convolution.convolution_backward_weight(weight_size, grad_output,input, padding, stride, dilation, groups, benchmark, deterministic, allow_tf32)
+	# 		grad_weight = grad_weight.to(torch.device("cuda"))
 
-			#grad_output = torch.transpose(grad_output,3,2)
-			#grad_weight = torch.matmul(input, grad_output)
-			#grad_weight = grad_output.transpose(1,0).mm(input)
-		if bias is not None and ctx.needs_input_grad[2]:
-			grad_bias = grad_output.sum(0).squeeze(0)
+	# 		#grad_output = torch.transpose(grad_output,3,2)
+	# 		#grad_weight = torch.matmul(input, grad_output)
+	# 		#grad_weight = grad_output.transpose(1,0).mm(input)
+	# 	if bias is not None and ctx.needs_input_grad[2]:
+	# 		grad_bias = grad_output.sum(0).squeeze(0).to(torch.device("cuda"))
 
-		#print(grad_output.size())
-		#print(grad_weight.size())
 
-		return grad_input, grad_weight, None, None
+	# 	return grad_input, grad_weight, None, None
         
 
 class MBMconv2d(nn.Module):
@@ -154,10 +132,8 @@ class MBMconv2d(nn.Module):
 		self.out_channels = out_channels
 
 		#Initialize weights/ kernels and make them parametrisable
-		self.kernel = nn.Parameter(torch.randn(out_channels, in_channels, kernel_size, kernel_size))
+		self.kernel = nn.Parameter(torch.randn(out_channels, in_channels, kernel_size, kernel_size)).to(torch.device("cuda"))
 		self.register_parameter('bias',None)
 
 	def forward(self, x):
-		# x = self.mbm_conv(x, self.kernel, self.out_channels, None)
-		# return x
 		return MBM_conv2d.apply(x, self.kernel, self.out_channels, None)
