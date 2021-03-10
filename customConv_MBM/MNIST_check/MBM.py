@@ -1,7 +1,9 @@
 import torch
-import torchvision as tv
+#import torchvision as tv
 from torch import nn
 import torch.nn.functional as F
+
+from math import log
 
 def convolve(inp, kernel):
 	
@@ -12,4 +14,4 @@ def convolve(inp, kernel):
 	return result
 
 def MBM_func(a, b):
-	return a*b;
+	return a*b
