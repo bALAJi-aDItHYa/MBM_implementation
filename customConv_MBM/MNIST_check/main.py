@@ -14,7 +14,7 @@ from torch.autograd import Variable
 
 #import external libraries
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 import os
 import math
@@ -26,13 +26,16 @@ if torch.cuda.is_available():
     device = torch.device('cuda')
 print(device)
 
-input_folder_path = "/home/balaji5199/Desktop/TU_Dresden/testing_folder/MNIST_checking/"
+input_folder_path = "/home/balaji5199/Desktop/Repo_files_TUD/customConv_MBM/MNIST_check/"
 train_df = pd.read_csv(input_folder_path+"train.csv")
-test_df = pd.read_csv(input_folder_path+"test.csv")
+test_df = pd.read_csv(input_folder_path+"mnist_test.csv")
 
 train_labels = train_df['label'].values
 train_images = (train_df.iloc[:,1:].values).astype('float32')
-test_images = (test_df.iloc[:,:].values).astype('float32')
+
+test_labels = test_df['label'].values[0:50]
+test_images = (test_df.iloc[0:50,1:].values).astype('float32')
+print(test_images.shape)
 
 #Training and Validation Split
 train_images, val_images, train_labels, val_labels = train_test_split(train_images, train_labels,
@@ -56,37 +59,42 @@ val_tensor = TensorDataset(val_images_tensor, val_labels_tensor)
 
 #test
 test_images_tensor = torch.tensor(test_images)/255.0
+test_labels_tensor = torch.tensor(test_labels)
+test_tensor = TensorDataset(test_images_tensor, test_labels_tensor)
 
 
 train_loader = DataLoader(train_tensor, batch_size=16, num_workers=2, shuffle=True)
 val_loader = DataLoader(val_tensor, batch_size=16, num_workers=2, shuffle=True)
-test_loader = DataLoader(test_images_tensor, batch_size=16, num_workers=2, shuffle=False)
+test_loader = DataLoader(test_tensor, batch_size=16, num_workers=2, shuffle=False)
 
-for batch_idx, (data, target) in enumerate(train_loader):
-    img_grid = make_grid(data[0:8,].unsqueeze(1), nrow=8)
-    img_target_labels = target[0:8,].numpy()
-    break
+# for batch_idx, (data, target) in enumerate(train_loader):
+#     img_grid = make_grid(data[0:8,].unsqueeze(1), nrow=8)
+#     img_target_labels = target[0:8,].numpy()
+#     break
     
 # plt.imshow(img_grid.numpy().transpose((1,2,0)))
 # plt.rcParams['figure.figsize'] = (10, 2)
 # plt.title(img_target_labels, size=16)
 # plt.show()
 
-from Net_py import Net
-conv_model = Net()
+from Net_py import Net, Normie_net
+conv_model = Normie_net().to(device)
 #print(conv_model)
 
 optimizer = optim.Adam(params=conv_model.parameters(), lr=0.003)
-criterion = nn.CrossEntropyLoss()
+criterion = nn.CrossEntropyLoss().to(device)
 
 exp_lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
-if torch.cuda.is_available():
-  conv_model = conv_model.cuda()
-  criterion = criterion.cuda()
+#if torch.cuda.is_available():
+#conv_model = conv_model.cuda()
+#criterion = criterion.cuda()
 
 
-#Training function
+for params in conv_model.state_dict():
+	print(params, "\t", conv_model.state_dict()[params].size())
+
+# Training function
 def train_model(num_epoch):
     conv_model.train()
     exp_lr_scheduler.step()
@@ -96,8 +104,8 @@ def train_model(num_epoch):
         data, target = data, target
         
         if torch.cuda.is_available():
-            data = data.cuda()
-            target = target.cuda()
+            data = data.to(device)
+            target = target.to(device)
             
         optimizer.zero_grad()
         output = conv_model(data)
@@ -111,8 +119,8 @@ def train_model(num_epoch):
                 100. * (batch_idx + 1) / len(train_loader), loss.data))
             
 #Evaluation function
-def evaluate(data_loader):
-    conv_model.eval()
+def evaluate(model, data_loader):
+    model.eval()
     loss = 0
     correct = 0
     
@@ -121,10 +129,10 @@ def evaluate(data_loader):
         data, target = data, target
         
         if torch.cuda.is_available():
-            data = data.cuda()
-            target = target.cuda()
+        	data = data.to(device)
+        	target = target.to(device)
         
-        output = conv_model(data)
+        output = model(data)
         
         loss += F.cross_entropy(output, target, size_average=False).data
 
@@ -141,4 +149,13 @@ num_epochs = 1
 
 for n in range(num_epochs):
     train_model(n)
-    evaluate(val_loader)
+    evaluate(conv_model, val_loader)
+
+
+PATH = "/home/balaji5199/Desktop/Repo_files_TUD/customConv_MBM/MNIST_check/Normie_net.pth"
+torch.save(conv_model.state_dict(), PATH)
+
+custom_model = Net().to(device)
+print(custom_model)
+custom_model.state_dict(torch.load(PATH))
+evaluate(custom_model, test_loader)
