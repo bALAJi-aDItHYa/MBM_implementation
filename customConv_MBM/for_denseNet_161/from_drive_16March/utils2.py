@@ -44,7 +44,10 @@ def predict(model, images, minDepth=10, maxDepth=1000, batch_size=2):
     images = np.transpose(images, [0,3,1,2])
     images = torch.tensor(images, dtype=torch.float32)#.cuda()
     #print(images.size())
-    predictions = model(images)
+
+    model.eval()
+    with torch.no_grad():
+        predictions = model(images)
     predictions = predictions.cpu().detach().numpy()
     predictions = np.transpose(predictions, [0,2,3,1])
     # Put in expected range
