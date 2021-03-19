@@ -63,8 +63,8 @@ class approx_conv(torch.autograd.Function):
 	#kernel dimensions --> [out_channel, in_channel, kh, kw]
 
 	def forward(ctx, in_feature, kernel, out_channel, padding, bias):
-		print(in_feature.shape)
-		print(kernel.shape)
+		# print(in_feature.shape)
+		# print(kernel.shape)
 
 		batch_size = in_feature.size(0)
 		in_channels = in_feature.size(1)
@@ -85,9 +85,9 @@ class approx_conv(torch.autograd.Function):
 
 		#Image Dimenstions
 		h, w = img.size(2), img.size(3)
-		print(h)
-		print(w)
-		print(rows)
+		# print(h)
+		# print(w)
+		# print(rows)
 
 		#Creating the patches - over which convolution is done
 		patches = img.unfold(2,kh,dh).unfold(3,kw,dw).reshape(batch_size, in_channels*kh*kw, -1)
