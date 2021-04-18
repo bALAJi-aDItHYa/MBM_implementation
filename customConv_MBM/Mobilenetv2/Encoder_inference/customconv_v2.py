@@ -104,7 +104,7 @@ class approx_conv(torch.autograd.Function):
 		print("reshaped img = {}".format(patches.shape))
 		print("out result = {}".format(result.shape))
 		print("reshaped kernel = {}".format(kernel.shape))
-		print(patches)
+		# print(patches)
 
 		#txt = open("approx_log.txt",'a+')
 
@@ -116,8 +116,8 @@ class approx_conv(torch.autograd.Function):
 					r=0
 					for k in range(kernel.size(1)):
 					
-						t1 = int((kernel[i][k]*1000).round())
-						t2 = int((x[k][j]*100).round())
+						t1 = int((kernel[i][k]*100).round())
+						t2 = int((x[k][j]*10).round())
 						#print("here i={}, j={}, k={}".format(i, j, k))
 						#print("t1={}, t2={}".format(t1,t2))
 						
@@ -137,7 +137,7 @@ class approx_conv(torch.autograd.Function):
 							
 						r+= lookup_table[t1][t2]*sign
 						
-					result[b][i][j] = r/100000
+					result[b][i][j] = r/1000
 					#print("result={}".format(result[b][i][j]))
 				end = time.time()
 				#txt.write("\n time taken for 300 convolutions in %d / 1104 is %f" %(i, (end-start)))

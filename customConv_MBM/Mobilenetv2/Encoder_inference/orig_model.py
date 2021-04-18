@@ -1,3 +1,9 @@
+#-----------------------------------------------------------------------------------------------------------------------------------
+# Balaji Adithya V
+# Mobilenet Encoder base model as described in - https://github.com/pytorch/vision/blob/master/torchvision/models/mobilenetv2.py 
+# A few additions made to be able to accomodate approximate MBM multiplication
+#-----------------------------------------------------------------------------------------------------------------------------------
+
 import torch
 from torch import nn
 from torch import Tensor
@@ -25,6 +31,12 @@ def _make_divisible(v: float, divisor: int, min_value: Optional[int] = None) -> 
     return new_v
 
 
+# ----------------------------------------------------------------------------
+# This function is called whenever there is a need to make point-wise conv approximation in the 
+# ConvBNReLU class. 
+# pconv = point wise conv
+# ----------------------------------------------------------------------------
+
 class ConvBNActivation_pconv(nn.Sequential):
     def __init__(
         self,
@@ -49,6 +61,12 @@ class ConvBNActivation_pconv(nn.Sequential):
             activation_layer(inplace=True)
         )
         self.out_channels = out_planes
+
+# ----------------------------------------------------------------------------
+# This function is called whenever there is a need to make depth-wise conv approximation in the 
+# ConvBNReLU class. 
+# dconv = depth wise conv
+# ----------------------------------------------------------------------------
 
 class ConvBNActivation_dconv(nn.Sequential):
     def __init__(
@@ -75,6 +93,12 @@ class ConvBNActivation_dconv(nn.Sequential):
         )
         self.out_channels = out_planes
 
+# ---------------------------------------------------------------------------------------
+# The original ConvBNReLU class - which is used to compute the following:
+# - approximate convolution
+# - ReLU6 
+# - Batch Normalisation
+# ---------------------------------------------------------------------------------------
 
 class ConvBNActivation(nn.Sequential):
     def __init__(
@@ -105,8 +129,14 @@ class ConvBNActivation(nn.Sequential):
 # necessary for backwards compatibility
 ConvBNReLU = ConvBNActivation
 ConvBNReLU_pconv = ConvBNActivation_pconv
-ConvBNActivation_dconv = ConvBNActivation_dconv
+ConvBNReLU_dconv = ConvBNActivation_dconv
 
+# ------------------------------------------------------------------------------
+# This class is used when there is the need to perform either:
+# 1) ConvBNReLU_pconv
+# 2) ConvBNReLU_dconv
+# 3) pointwise approx conv - directly
+# ------------------------------------------------------------------------------
 
 class InvertedResidual_approx(nn.Module):
     def __init__(
@@ -133,7 +163,7 @@ class InvertedResidual_approx(nn.Module):
             layers.append(ConvBNReLU(inp, hidden_dim, kernel_size=1, norm_layer=norm_layer))
         layers.extend([
             # dw
-            ConvBNReLU(hidden_dim, hidden_dim, stride=stride, groups=hidden_dim, norm_layer=norm_layer),
+            ConvBNReLU_dconv(hidden_dim, hidden_dim, stride=stride, groups=hidden_dim, norm_layer=norm_layer),
             # pw-linear
             nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False),
             norm_layer(oup),
@@ -148,6 +178,10 @@ class InvertedResidual_approx(nn.Module):
         else:
             return self.conv(x)
 
+# ----------------------------------------------------------------------------------------------------------
+# The InvertedResidual class represents the blocks within the bottleneck layer as described in the paper
+# This class is used for only accurate convolutions
+# ----------------------------------------------------------------------------------------------------------
 
 class InvertedResidual(nn.Module):
     def __init__(
@@ -188,6 +222,13 @@ class InvertedResidual(nn.Module):
             return x + self.conv(x)
         else:
             return self.conv(x)
+
+
+# -------------------------------------------------------------------------------------------
+# This is the class which constructs the Mobilenet_v2 architecure
+# While constructing the architecture, the necessary layers on which 
+# approximation has to be performed can be picked and replaced before each inference run
+# -------------------------------------------------------------------------------------------
 
 
 class MobileNetV2(nn.Module):
@@ -243,14 +284,21 @@ class MobileNetV2(nn.Module):
         # building first layer
         input_channel = _make_divisible(input_channel * width_mult, round_nearest)
         self.last_channel = _make_divisible(last_channel * max(1.0, width_mult), round_nearest)
-        features: List[nn.Module] = [ConvBNReLU_pconv(3, input_channel, stride=2, norm_layer=norm_layer)]
+        features: List[nn.Module] = [ConvBNReLU(3, input_channel, stride=2, norm_layer=norm_layer)]
         # building inverted residual blocks
         for t, c, n, s in inverted_residual_setting:
             output_channel = _make_divisible(c * width_mult, round_nearest)
             for i in range(n):
-                stride = s if i == 0 else 1
-                features.append(block(input_channel, output_channel, stride, expand_ratio=t, norm_layer=norm_layer))
-                input_channel = output_channel
+                if i==1 and c==24: #Selecting the specific block for approx inference
+                    stride = s if i == 0 else 1
+                    features.append(block_approx(input_channel, output_channel, stride, expand_ratio=t, norm_layer=norm_layer))
+                    input_channel = output_channel
+
+                else:
+                    stride = s if i == 0 else 1
+                    features.append(block(input_channel, output_channel, stride, expand_ratio=t, norm_layer=norm_layer))
+                    input_channel = output_channel
+
         # building last several layers
         features.append(ConvBNReLU(input_channel, self.last_channel, kernel_size=1, norm_layer=norm_layer))
         # make it nn.Sequential
@@ -288,6 +336,11 @@ class MobileNetV2(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         return self._forward_impl(x)
 
+
+# ------------------------------------------------------------
+# utility function to call the MobileNetV2 class to start
+# constructing the model architecture
+# -----------------------------------------------------------
 
 def mobilenet_v2_custom(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> MobileNetV2:
     """

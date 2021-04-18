@@ -88,17 +88,18 @@ class depthwise_conv(torch.autograd.Function):
 
 		patches = img.unfold(2,kh,dh).unfold(3,kw,dw).reshape(batch_size, in_channels, out_h*out_w, kh*kw)
 		result = torch.zeros(batch_size, out_channel, out_h*out_w)
-		kernel = kernel.resize(out_channel, -1)
+		kernel = kernel.reshape(out_channel, -1)
 
 		for b in range(batch_size):
 			x = patches[b]
+			print(x.shape)
 			for c in range(groups):
 				start = time.time()
 				for i in range(x.size(1)):
 					r=0
 					for j in range(kernel.size(1)):
-						t1 = int((kernel[c][j]*1000).round())
-						t2 = int((x[c][i][j]).round())
+						t1 = int((kernel[c][j]*10).round())
+						t2 = int((x[c][i][j]*10).round())
 
 						if(t1>255) : t1 =255
 						if(t1<-255): t1 =-255
@@ -116,12 +117,12 @@ class depthwise_conv(torch.autograd.Function):
 
 						r += lookup_table[t1][t2]*sign
 
-					result[b][c][i] = r/1000
+					result[b][c][i] = r/100
 
 				end = time.time()
-				print("time taken for channel {} in batch {} is {}s".format(c, b, end-start))
+				print("time taken for channel {}/ {} in batch {} is {}s".format(c, groups, b, end-start))
 
-		result.reshape(batch_size, out_channel, out_h, out_w)
+		result = result.reshape(batch_size, out_channel, out_h, out_w)
 
 		if bias is not None:
 			result+= bias[None,:,None,None].expand_as(result)
@@ -148,11 +149,11 @@ class approx_dconv(nn.Module):
 		self.dilation = dilation
 		self.groups = groups
 		self.padding = padding
-		self.weight = nn.Parameter(torch.Tensor(out_channels, in_channels, kernel_size, kernel_size))
+		self.weight = nn.Parameter(torch.Tensor(out_channels, 1, kernel_size, kernel_size))
 		self.bias = self.register_parameter('bias',None)
-		print("I'm here")
+		# print("I'm here")
 
 	def forward(self, x):
-		print("I'm in fwd of approx_dconv")
+		# print("I'm in fwd of approx_dconv")
 		return depthwise_conv.apply(x, self.weight, self.out_channels, self.stride, self.padding, self.dilation, self.groups, self.bias)
 		
