@@ -10,5 +10,8 @@ This repo contains the work-under-progress for my undergraduate thesis at cfaed 
 2) Custom convolution for MBM
     - MNIST_MBM - checking the MBM mult implementation over MNIST dataset
     - DenseNet-161 - For DenseDepth problem - implementing MBM and running inference on NYUv2 dataset
+    - MobileNetv2 - For DenseDepth problem  *updated* 
+3) Custom BatchNorm implementation for approximate Division
+    - DexiNed - For Edge Detection problem
 3) Weekly Updates
 4) Reference paper PDFs
